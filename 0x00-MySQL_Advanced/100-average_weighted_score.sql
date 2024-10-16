@@ -7,6 +7,7 @@ BEGIN
     DECLARE total_weighted_score INT DEFAULT 0;
     DECLARE total_weight INT DEFAULT 0;
 
+
     SELECT SUM(corrections.score * projects.weight)
         INTO total_weighted_score
         FROM corrections
