@@ -1,55 +1,75 @@
 #!/usr/bin/env python3
 """
 Module for implementing an expiring web cache and tracker.
-This module provides functionality to cache web page content
-and track the number of times a URL is accessed.
+This module provides functionality to track URL access frequency
+and cache web page content with a 10 second expiration time.
 """
 import requests
 import time
 from functools import wraps
-from typing import Dict
+from typing import Dict, Callable
 
 
-def cache_decorator(fn):
+def count_url_access() -> Dict:
     """
-    Decorator that implements caching and access counting for URLs.
+    Create a dictionary to store URL access counts.
+    
+    Returns:
+        Dict: Empty dictionary for storing URL access counts
+    """
+    return {}
+
+
+def cache_content() -> Dict:
+    """
+    Create a dictionary to store cached content.
+    
+    Returns:
+        Dict: Empty dictionary for storing cached content
+    """
+    return {}
+
+
+cache: Dict = cache_content()
+count_cache: Dict = count_url_access()
+
+
+def cache_decorator(func: Callable) -> Callable:
+    """
+    Decorator that implements caching and URL access counting.
     
     Args:
-        fn: The function to be decorated
+        func: The function to be decorated that fetches web pages
         
     Returns:
-        wrapper function that implements caching and counting
+        Callable: Wrapper function that adds caching and counting
     """
-    cache: Dict = {}
-    
-    @wraps(fn)
+    @wraps(func)
     def wrapper(url: str) -> str:
         """
-        Wrapper function that handles caching and counting of URL accesses.
+        Wrapper that handles caching and counting of URL accesses.
         
         Args:
             url: The URL to fetch and cache
             
         Returns:
-            str: The content of the webpage
+            str: The HTML content of the webpage
         """
+        # Increment count for this URL
+        count_key = f"count:{url}"
+        count_cache[count_key] = count_cache.get(count_key, 0) + 1
+        
         current_time = time.time()
         
-        # Update count for the URL
-        count_key = f"count:{url}"
-        if count_key not in cache:
-            cache[count_key] = 0
-        cache[count_key] += 1
-        
-        # Check if cached content exists and is still valid
+        # Return cached content if still valid
         if url in cache:
             content, expiry_time = cache[url]
             if current_time < expiry_time:
                 return content
-        
-        # Fetch new content if cache missing or expired
-        content = fn(url)
-        cache[url] = (content, current_time + 10)  # Cache for 10 seconds
+            
+        # Fetch and cache new content
+        content = func(url)
+        cache[url] = (content, current_time + 10)
         return content
     
     return wrapper
@@ -58,13 +78,13 @@ def cache_decorator(fn):
 @cache_decorator
 def get_page(url: str) -> str:
     """
-    Fetches the content of a webpage and returns it.
+    Fetch and return the HTML content of a webpage.
     
     Args:
         url (str): The URL of the webpage to fetch
         
     Returns:
-        str: The content of the webpage
+        str: The HTML content of the webpage
     """
     response = requests.get(url)
     return response.text
