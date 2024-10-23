@@ -1,40 +1,51 @@
 #!/usr/bin/env python3
-""" A caching request module
-"""
+'''A module for fetching and caching web pages with access tracking.
+'''
+
 import redis
 import requests
 from functools import wraps
-from typing  import Callable, Any
+from typing import Callable
 
+# Redis connection instance
+redis_store = redis.Redis()
 
-def track_get_page(fn: Callable) -> Callable:
-    """ getter for get_page
-    """
-    @wraps(fn)
+def cache_decorator(method: Callable) -> Callable:
+    '''Decorator to cache the result of a function and track access count.'''
+    
+    @wraps(method)
     def wrapper(url: str) -> str:
-        """
-        wrapper that checks if a url's data is cached
-        and tracks how many times the get_page is called.
-        """
-        client = redis.Redis()
-        client.incr(f'count:{url}')
-        cached_page = client.get(f'{url}')
+        '''Wrapper function that manages caching and tracking of URL accesses.'''
+        
+        # Track how many times the URL has been accessed
+        count_key = f"count:{url}"
+        redis_store.incr(count_key)
+        
+        # Check if the URL's content is already cached
+        cache_key = f"cached:{url}"
+        cached_page = redis_store.get(cache_key)
         if cached_page:
-            return cached_page.decode('utf-8')
-        response = fn(url)
-        client.set(f'{url}', response, 10)
-        return response
+            return cached_page.decode('utf-8')  # Return cached content
+        
+        # Fetch the page content using requests
+        response = requests.get(url)
+        page_content = response.text
+        
+        # Cache the content for 10 seconds
+        redis_store.setex(cache_key, 10, page_content)
+        
+        return page_content
+    
     return wrapper
 
-
-@track_get_page
+@cache_decorator
 def get_page(url: str) -> str:
-    """
-    Makes a http request to a given endpoint
-    params:
-        url - the url of the web page to retreive
+    '''Fetches the HTML content of a URL.
+    
+    Args:
+        url (str): The URL to fetch the content from.
+        
     Returns:
-        The content of the web page.
-    """
-    response = requests.get(url)
-    return response.text
+        str: The HTML content of the URL.
+    '''
+    return requests.get(url).text
